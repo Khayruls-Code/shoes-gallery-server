@@ -3,10 +3,12 @@ const app = express()
 const cors = require('cors')
 const { MongoClient } = require('mongodb');
 const ObjectId = require("mongodb").ObjectId;
+const { json } = require('express');
 require('dotenv').config()
 app.use(cors())
-app.use(express.json())
 const port = process.env.PORT || 5000
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get('/', (req, res) => {
   res.send('shoes gallery server running...')
@@ -22,11 +24,26 @@ async function run() {
     const productCollection = database.collection('products')
     const reviewCollection = database.collection('reviews')
     const orderCollection = database.collection('orders')
+    const usersCollection = database.collection('users')
 
     //get products api
     app.get('/products', async (req, res) => {
       const cursor = productCollection.find({})
       const result = await cursor.toArray()
+      res.json(result)
+    })
+
+    //add product api
+    app.post('/products', async (req, res) => {
+      const data = req.body;
+      const result = await productCollection.insertOne(data)
+      res.json(result)
+    })
+    //deltete product api
+    app.delete('/products/:id', async (req, res) => {
+      const id = req.params.id
+      const query = { '_id': ObjectId(id) }
+      const result = await productCollection.deleteOne(query)
       res.json(result)
     })
 
@@ -37,7 +54,14 @@ async function run() {
       res.json(result)
     })
 
-    //getting apecific
+    //add review api
+    app.post('/reviews', async (req, res) => {
+      const data = req.body;
+      const result = await reviewCollection.insertOne(data)
+      res.json(result)
+    })
+
+    //getting apecific product
     app.get('/products/:id', async (req, res) => {
       const id = req.params.id
       const query = { '_id': ObjectId(id) }
@@ -72,7 +96,51 @@ async function run() {
       const result = await orderCollection.deleteOne(query)
       res.json(result)
     })
+    //status update api
+    app.put('/orders/:id', async (req, res) => {
+      const id = req.params.id
+      const status = req.body.status
+      const filter = { '_id': ObjectId(id) }
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          status: status
+        }
+      }
+      const result = await orderCollection.updateOne(filter, updateDoc, options)
+      res.json(result)
+    })
 
+    //add user api
+    app.post('/users', async (req, res) => {
+      const data = req.body
+      const result = await usersCollection.insertOne(data)
+      res.json(result)
+    })
+    //make amdin api
+    app.put('/users/admin', async (req, res) => {
+      const email = req.body.email
+      const filter = { email: email }
+      const updateDoc = {
+        $set: {
+          role: "admin"
+        }
+      }
+      const result = await usersCollection.updateOne(filter, updateDoc)
+      res.json(result)
+    })
+
+    //get admin api
+    app.get('/users/:email', async (req, res) => {
+      const email = req.params.email
+      const query = { email: email }
+      const user = await usersCollection.findOne(query)
+      let isAdmin = false;
+      if (user?.role === 'admin') {
+        isAdmin = true
+      }
+      res.json({ admin: isAdmin })
+    })
   }
   finally {
     // await client.close()
